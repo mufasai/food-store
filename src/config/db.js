@@ -12,21 +12,15 @@ import mongoose from "mongoose";
 
 // export default connectDB;
 
-let cachedDb = null;
+let isConnected = false;
 
 const connectDB = async () => {
-    if (cachedDb) return cachedDb;
+    if (isConnected) return;
 
-    try {
-        const db = await mongoose.connect(process.env.MONGODB_URI, {
-            serverSelectionTimeoutMS: 5000,
-        });
-        cachedDb = db;
-        console.log("MongoDB connected");
-        return cachedDb;
-    } catch (error) {
-        console.error("MongoDB connection error:", error);
-    }
+    const db = await mongoose.connect(process.env.MONGODB_URI);
+    isConnected = db.connections[0].readyState === 1;
+
+    console.log("MongoDB connected");
 };
 
 export default connectDB;
