@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import compression from "compression";
 import dotenv from "dotenv";
 import userRoutes from "./routes/user.routes.js";
 import productRoutes from "./routes/product.routes.js";
@@ -11,6 +12,7 @@ dotenv.config();
 
 const app = express();
 
+app.use(compression());
 app.use(cors());
 app.use(express.json());
 
@@ -20,8 +22,16 @@ app.get("/", (req, res) => {
     res.send("Food Store API is running");
 });
 
-app.use("/api/users", userRoutes);
-app.use("/api/products", productRoutes);
+// Cache product and user routes at the edge for 1 minute
+app.use("/api/users", (req, res, next) => {
+    res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate");
+    next();
+}, userRoutes);
+
+app.use("/api/products", (req, res, next) => {
+    res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate");
+    next();
+}, productRoutes);
 app.use(errorHandler);
 
 
