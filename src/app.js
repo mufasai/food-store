@@ -16,6 +16,10 @@ app.use(express.json());
 
 connectDB();
 
+app.get("/", (req, res) => {
+    res.send("Food Store API is running");
+});
+
 app.use("/api/users", userRoutes);
 app.use("/api/products", productRoutes);
 app.use(errorHandler);
