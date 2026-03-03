@@ -1,40 +1,76 @@
 import User from "../models/user.model.js";
 import { generateOtp } from "../utils/generateOtp.js";
 import { sendSms } from "../utils/sendSms.js";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+import { registerSchema, loginSchema } from "../validations/auth.validation.js";
 
 export const register = async (req, res) => {
     try {
-        const { username, phone, password } = req.body;
+        const data = registerSchema.parse(req.body);
 
-        let user = await User.findOne({ phone });
+        const existingUser = await User.findOne({
+            $or: [
+                { email: data.email },
+                { username: data.username }
+            ]
+        });
 
-        const otp = generateOtp();
-        const otpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 menit
-
-        if (!user) {
-            user = await User.create({
-                username,
-                phone,
-                password,
-                otp,
-                otpExpires,
-            });
-        } else {
-            user.otp = otp;
-            user.otpExpires = otpExpires;
-            await user.save();
+        if (existingUser) {
+            return res.status(400).json({ message: "User already exists" });
         }
 
-        await sendSms(phone, `Kode OTP kamu adalah ${otp}`);
+        const hashedPassword = await bcrypt.hash(data.password, 10);
 
-        res.json({ message: "OTP sent to your phone" });
+        await User.create({
+            username: data.username,
+            email: data.email,
+            password: hashedPassword,
+        });
+
+        res.json({ message: "Register success" });
 
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: "Failed to send OTP" });
+        res.status(400).json({ message: err.message });
     }
 };
 
+export const login = async (req, res) => {
+    try {
+        const data = loginSchema.parse(req.body);
+
+        const user = await User.findOne({
+            $or: [
+                { email: data.identifier },
+                { username: data.identifier }
+            ]
+        });
+
+        if (!user) {
+            return res.status(400).json({ message: "User not found" });
+        }
+
+        const isMatch = await bcrypt.compare(data.password, user.password);
+
+        if (!isMatch) {
+            return res.status(400).json({ message: "Wrong password" });
+        }
+
+        const token = jwt.sign(
+            { userId: user._id },
+            process.env.JWT_SECRET,
+            { expiresIn: "1d" }
+        );
+
+        res.json({
+            message: "Login success",
+            token,
+        });
+
+    } catch (err) {
+        res.status(400).json({ message: err.message });
+    }
+};
 
 export const verifyOtp = async (req, res) => {
     try {
